@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stage Manager</title>
+<style>
+:root{
+  --bg:#0d1b2e; --panel:#fff; --ink:#1c1b1a; --bg-ink:#e9edf5; --sub:#6b6863; --line:#e3e0da;
+  --accent:#8a3b2b; --accent2:#c9a24b; --ok:#3f7d4f; --warn:#c9822c; --bad:#b3413a;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#0d1b2e; --panel:#231f19; --ink:#f1ede4; --bg-ink:#e9edf5; --sub:#a9a196; --line:#3a352c;}
+}
+:root[data-theme="dark"]{--bg:#0d1b2e; --panel:#231f19; --ink:#f1ede4; --bg-ink:#e9edf5; --sub:#a9a196; --line:#3a352c;}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{margin:0;background:var(--bg);color:var(--bg-ink);font-family:Georgia,'Iowan Old Style',serif;min-height:100%;}
+header{position:sticky;top:0;padding:14px 16px calc(10px + env(safe-area-inset-top,0px));background:var(--accent);color:#fff;z-index:10;}
+header h1{margin:0;font-size:1.15rem;letter-spacing:.03em;font-weight:600;}
+nav{display:flex;gap:4px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;}
+nav button{font-family:inherit;white-space:nowrap;border:none;background:transparent;color:var(--sub);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;}
+nav button.active{background:var(--accent);color:#fff;}
+main{max-width:820px;margin:0 auto;padding:16px 16px 60px;}
+.card{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;}
+h2{margin:0 0 10px;font-size:1.05rem;}
+h3{margin:14px 0 6px;font-size:.95rem;color:var(--accent);}
+input,select,textarea{font-family:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:.9rem;width:100%;}
+textarea{resize:vertical;min-height:50px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}
+.row > *{flex:1;min-width:110px;}
+button.btn{font-family:inherit;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:.85rem;}
+button.btn.sec{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+button.btn.ghost{background:transparent;color:var(--sub);border:1px solid var(--line);}
+button.btn.sm{padding:5px 9px;font-size:.78rem;}
+ul.plain{list-style:none;padding:0;margin:0;}
+li.item{border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+li.item .meta{color:var(--sub);font-size:.78rem;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;}
+.b-ok{background:rgba(63,125,79,.15);color:var(--ok);}
+.b-warn{background:rgba(201,130,44,.15);color:var(--warn);}
+.b-bad{background:rgba(179,65,58,.15);color:var(--bad);}
+.b-idle{background:rgba(107,103,99,.15);color:var(--sub);}
+.sceneHead{display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+.sceneHead:hover{opacity:.85;}
+.small{font-size:.78rem;color:var(--sub);}
+.actWrap{margin-bottom:16px;}
+.actTitle{font-size:1rem;color:var(--accent);border-bottom:2px solid var(--accent2);padding-bottom:4px;margin-bottom:8px;}
+.beatRow{display:flex;gap:6px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);}
+.beatRow:last-child{border-bottom:none;}
+.tag{font-size:.7rem;padding:1px 6px;border-radius:4px;background:var(--bg);border:1px solid var(--line);color:var(--sub);}
+.scenePanel{display:none;}
+.scenePanel.show{display:block;}
+.sceneNavList{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.sceneNavBtn{padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);font-size:.78rem;cursor:pointer;color:var(--ink);}
+.sceneNavBtn.current{background:var(--accent);color:#fff;border-color:var(--accent);}
+.iconBtn{background:none;border:none;color:var(--bad);cursor:pointer;font-size:1rem;padding:2px 6px;}
+.overtime{color:var(--bad)!important;font-weight:700;}
+.scriptOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:49;}
+.scriptPanel{position:fixed;top:0;right:0;height:100%;width:min(440px,92vw);background:var(--panel);color:var(--ink);z-index:50;box-shadow:-4px 0 20px rgba(0,0,0,.25);display:flex;flex-direction:column;padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));}
+.scriptPanel pre,.scriptPanel textarea{white-space:pre-wrap;word-wrap:break-word;font-family:Georgia,serif;font-size:.92rem;line-height:1.5;flex:1;overflow-y:auto;margin:10px 0;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg);color:var(--ink);resize:none;width:100%;}
+.timerActive{color:#000!important;font-weight:700;}
+.callDue{background:#fff3b0!important;color:#000!important;font-weight:700;}
+</style>
+</head>
+<body>
+<header><h1 id="appTitle">🎭 Stage Manager</h1></header>
+<nav id="tabs"></nav>
+<main id="app"></main>
+<div id="scriptDrawer"></div>
+<div id="castDrawer"></div>
+<div id="charactersDrawer"></div>
+<div id="micsDrawer"></div>
+<div id="act1PreDrawer"></div>
+<div id="act2PreDrawer"></div>
+<div id="saveErrorBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bad);color:#fff;padding:10px 16px;text-align:center;z-index:100;font-size:.85rem;font-weight:600;">⚠ Could not save — your browser's storage may be full or unavailable. Recent changes may be lost. Try exporting your text panels and backing up your show now.</div>
+
+<script>
+const KEY = 'sm_show_data_v1';
+let state = load();
+let activeSceneId = null;
+let scriptPanelOpen = false;
+let castPanelOpen = false;
+let charactersPanelOpen = false;
+let micsPanelOpen = false;
+let act1PrePanelOpen = false;
+let act2PrePanelOpen = false;
+
+function normalizeShowTimers(show){
+  // Freeze any timer that was mid-run when saved — reopening a page or restoring a backup
+  // means nothing actually kept ticking in the background, so trust only the saved elapsed
+  // value and never a stale startedAt timestamp.
+  const freeze = obj=>{ if(obj && obj.timer && obj.timer.running){ obj.timer.running=false; obj.timer.startedAt=null; } };
+  (show.acts||[]).forEach(act=>{
+    freeze(act);
+    if(act.intermission) freeze(act.intermission);
+    (act.scenes||[]).forEach(scene=>{
+      freeze(scene);
+      (scene.beats||[]).forEach(b=>freeze(b));
+    });
+  });
+  (show.calls||[]).forEach(c=>freeze(c));
+  return show;
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && Array.isArray(parsed.shows)){
+        parsed.shows.forEach(normalizeShowTimers);
+        return parsed;
+      }
+      if(parsed && Array.isArray(parsed.acts)){
+        // migrate old single-show format into the new multi-show format
+        const migrated = { id: uid(), name:'My Show',
+            acts: parsed.acts||[], props: parsed.props||[], cues: parsed.cues||[] };
+        normalizeShowTimers(migrated);
+        return {
+          shows: [migrated],
+          currentShowId: null,
+          tab: parsed.tab || 'run'
+        };
+      }
+    }
+  }catch(e){}
+  return {
+    shows: [ newShow('My Show', true) ],
+    currentShowId: null,
+    tab: 'run'
+  };
+}
+function newShow(name, withDemo){
+  return {
+    id: uid(), name,
+    acts: withDemo ? [ demoAct('Act 1'), demoAct('Act 2') ] : [ ],
+    props: [], cues: []
+  };
+}
+function currentShow(){ return state.shows.find(s=>s.id===state.currentShowId) || null; }
+function S(){ return currentShow(); }
+function demoAct(name){
+  return { id: uid(), name, scenes: [ demoScene('Scene 1') ] };
+}
+function demoScene(name){
+  return { id: uid(), name, notes:'', beats: [
+    {id:uid(), type:'line', title:'Opening dialogue'},
+    {id:uid(), type:'song', title:'Opening Number'}
+  ]};
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function ensureTimer(obj){ if(!obj.timer) obj.timer={elapsed:0,running:false,startedAt:null,target:0}; if(obj.timer.target===undefined) obj.timer.target=0; return obj.timer; }
+function getElapsed(t){ return t.elapsed + (t.running ? Date.now()-t.startedAt : 0); }
+function formatCountdown(remainMs){
+  const over = remainMs < 0;
+  return (over?'-':'') + formatTime(Math.abs(remainMs));
+}
+function formatTime(ms){
+  const total=Math.max(0,Math.floor(ms/1000));
+  const h=Math.floor(total/3600), m=Math.floor((total%3600)/60), s=total%60;
+  const mm=m.toString().padStart(2,'0'), ss=s.toString().padStart(2,'0');
+  return h>0 ? h+':'+mm+':'+ss : mm+':'+ss;
+}
+function parseTimeToMs(str){
+  const parts = (str||'').trim().split(':').map(x=>parseInt(x,10));
+  if(parts.some(isNaN)) return null;
+  let secs=0;
+  if(parts.length===3) secs = parts[0]*3600+parts[1]*60+parts[2];
+  else if(parts.length===2) secs = parts[0]*60+parts[1];
+  else if(parts.length===1) secs = parts[0];
+  else return null;
+  return secs*1000;
+}
+function findBeatAnywhere(bId){
+  if(!S()) return null;
+  for(const a of S().acts) for(const s of a.scenes) for(const b of s.beats) if(b.id===bId) return b;
+}
+function findSceneAnywhere(sId){
+  if(!S()) return null;
+  for(const a of S().acts) for(const s of a.scenes) if(s.id===sId) return s;
+}
+function ensureIntermission(act){
+  if(!act.intermission) act.intermission = { id: uid(), enabled: false };
+  return act.intermission;
+}
+function findIntermissionAnywhere(id){
+  if(!S()) return null;
+  for(const a of S().acts) if(a.intermission && a.intermission.id===id) return a.intermission;
+  return null;
+}
+function timerObjFor(kind,id){
+  if(!S()) return null;
+  if(kind==='act') return S().acts.find(a=>a.id===id);
+  if(kind==='scene') return findSceneAnywhere(id);
+  if(kind==='intermission') return findIntermissionAnywhere(id);
+  return findBeatAnywhere(id);
+}
+function startFresh(t){ t.elapsed=0; t.running=true; t.startedAt=Date.now(); }
+function cascadeStart(kind, obj){
+  if(kind==='act'){
+    const firstScene = obj.scenes && obj.scenes[0];
+    if(firstScene){
+      const st = ensureTimer(firstScene);
+      if(!st.running){ startFresh(st); cascadeStart('scene', firstScene); }
+    }
+  } else if(kind==='scene'){
+    const firstBeat = obj.beats && obj.beats[0];
+    if(firstBeat){
+      const bt = ensureTimer(firstBeat);
+      if(!bt.running) startFresh(bt);
+    }
+  }
+}
+function buildRunTimeline(){
+  const out=[];
+  if(!S()) return out;
+  S().acts.forEach(act=>{
+    act.scenes.forEach(scene=>{ out.push({kind:'scene', act, scene, id:scene.id}); });
+    const im = ensureIntermission(act);
+    if(im.enabled) out.push({kind:'intermission', act, intermission: im, id: im.id});
+  });
+  return out;
+}
+
+// ---------- TIMING SHEET FILE (export/import) ----------
+function buildTimingText(){
+  const show = S();
+  let lines = [`STAGE MANAGER TIMING SHEET`, `Show: ${show.name}`, `Saved: ${new Date().toLocaleString()}`, ''];
+  show.acts.forEach(act=>{
+    const at=ensureTimer(act);
+    lines.push(`ACT|${act.id}|${act.name}|${Math.floor(getElapsed(at)/1000)}|${Math.floor(at.target/1000)}`);
+    act.scenes.forEach(sc=>{
+      const st=ensureTimer(sc);
+      lines.push(`SCENE|${sc.id}|${sc.name}|${Math.floor(getElapsed(st)/1000)}|${Math.floor(st.target/1000)}`);
+      sc.beats.forEach(b=>{
+        const bt=ensureTimer(b);
+        lines.push(`BEAT|${b.id}|${b.type}|${b.title}|${Math.floor(getElapsed(bt)/1000)}`);
+      });
+    });
+    const im = ensureIntermission(act);
+    if(im.enabled){
+      const it = ensureTimer(im);
+      lines.push(`INTERMISSION|${im.id}|${act.id}|${Math.floor(getElapsed(it)/1000)}|${Math.floor(it.target/1000)}`);
+    }
+  });
+  return lines.join('\n');
+}
+function safeFileName(name){
+  return (name||'show').trim().replace(/[^a-z0-9\- ]/gi,'').replace(/\s+/g,'-').toLowerCase() || 'show';
+}
+async function saveFile(filename, data){
+  // Try the claude.ai artifact download capability first (works when opened via the claude.ai link).
+  try{
+    if(window.claude && typeof window.claude.use === 'function'){
+      const dl = await window.claude.use('downloads');
+      if(dl){ await dl.save({filename, data}); return true; }
+    }
+  }catch(e){ /* fall through to plain browser download */ }
+  // Fallback: plain browser download (works when opened as a local .html file).
+  try{
+    const blob = new Blob([data], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+async function exportTimers(){
+  const status = document.getElementById('timingSheetStatus');
+  const filename = safeFileName(S().name)+'-timing-sheet.txt';
+  const ok = await saveFile(filename, buildTimingText());
+  if(status) status.textContent = ok ? ('Saved as '+filename) : 'Save cancelled or failed.';
+}
+function applyTimingText(text){
+  const lines = text.split('\n');
+  const showLine = lines.find(l=>l.startsWith('Show:'));
+  const fileShowName = showLine ? showLine.replace('Show:','').trim() : null;
+  lines.forEach(line=>{
+    const parts = line.split('|');
+    if(parts[0]==='ACT'){
+      const [,id,name,secs,targetSecs] = parts;
+      const act = S().acts.find(a=>a.id===id) || S().acts.find(a=>a.name===name);
+      if(act){ const t=ensureTimer(act); t.elapsed=Number(secs)*1000; t.running=false; t.startedAt=null; if(targetSecs!==undefined) t.target=Number(targetSecs)*1000; }
+    } else if(parts[0]==='SCENE'){
+      const [,id,name,secs,targetSecs] = parts;
+      let sc = findSceneAnywhere(id);
+      if(!sc){ for(const a of S().acts) for(const s of a.scenes) if(s.name===name){ sc=s; break; } }
+      if(sc && secs!==undefined){ const t=ensureTimer(sc); t.elapsed=Number(secs)*1000; t.running=false; t.startedAt=null; if(targetSecs!==undefined) t.target=Number(targetSecs)*1000; }
+    } else if(parts[0]==='BEAT'){
+      const [,id,type,title,secs] = parts;
+      let b = findBeatAnywhere(id);
+      if(!b){
+        outer: for(const a of S().acts) for(const s of a.scenes) for(const bb of s.beats){
+          if(bb.title===title && bb.type===type){ b=bb; break outer; }
+        }
+      }
+      if(b){ const t=ensureTimer(b); t.elapsed=Number(secs)*1000; t.running=false; t.startedAt=null; }
+    } else if(parts[0]==='INTERMISSION'){
+      const [,imId,actId,secs,targetSecs] = parts;
+      const act = S().acts.find(a=>a.id===actId);
+      if(act){
+        const im = ensureIntermission(act);
+        im.enabled = true;
+        const t=ensureTimer(im);
+        t.elapsed=Number(secs)*1000; t.running=false; t.startedAt=null;
+        if(targetSecs!==undefined) t.target=Number(targetSecs)*1000;
+      }
+    }
+  });
+  return fileShowName;
+}
+function handleImportFile(file){
+  const status = document.getElementById('timingSheetStatus');
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const fileShowName = applyTimingText(reader.result); save(); render();
+      const s2=document.getElementById('timingSheetStatus');
+      if(s2){
+        const mismatch = fileShowName && S() && fileShowName!==S().name;
+        s2.textContent = mismatch
+          ? `Loaded ${file.name} (file was saved from "${fileShowName}" — times matched by name where possible)`
+          : 'Loaded '+file.name;
+      }
+    }catch(e){ if(status) status.textContent='Could not read that file.'; }
+  };
+  reader.onerror = ()=>{ if(status) status.textContent='Could not read that file.'; };
+  reader.readAsText(file);
+}
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(state));
+    const banner = document.getElementById('saveErrorBanner');
+    if(banner) banner.style.display='none';
+  }catch(e){
+    console.error('save failed', e);
+    const banner = document.getElementById('saveErrorBanner');
+    if(banner) banner.style.display='block';
+  }
+}
+function allScenes(){
+  const out=[];
+  if(!S()) return out;
+  S().acts.forEach(a=>a.scenes.forEach(s=>out.push({act:a,scene:s})));
+  return out;
+}
+function sceneLabel(actName, sceneName){ return actName+' — '+sceneName; }
+
+const TABS = [
+  {id:'run', label:'Run Show'},
+  {id:'script', label:'Scenes'},
+  {id:'calls', label:'Calls'}
+];
+
+function renderNav(){
+  const nav = document.getElementById('tabs');
+  if(!S()){ nav.innerHTML=''; return; }
+  const toolsBtnHtml = state.tab==='run'
+    ? `<button data-toolstoggle="1" style="color:var(--sub)" title="Hide/show controls">${state.toolsHidden?'👁 Show Controls':'🙈 Hide Controls'}</button>`
+    : '';
+  const propsBtnHtml = state.tab==='run'
+    ? `<button data-propstoggle="1" style="color:var(--sub)" title="Hide/show props">${state.propsHidden?'🎁 Show Props':'📦 Hide Props'}</button>`
+    : '';
+  const propsTabBtnHtml = `<button data-tab="props" class="${state.tab==='props'?'active':''}">Props</button>`;
+  const act1PreBtnHtml = `<button data-act1pretoggle="1" style="color:var(--sub)" title="View Act 1 Pre-Show">Act1 Pre-Show</button>`;
+  const act2PreBtnHtml = `<button data-act2pretoggle="1" style="color:var(--sub)" title="View Act 2 Pre-Show">Act2 Pre-Show</button>`;
+  const scriptBtnHtml = `<button data-scripttoggle="1" style="color:var(--sub)" title="View script">📜 Script</button>`;
+  const castBtnHtml = `<button data-casttoggle="1" style="color:var(--sub)" title="View cast">👥 Cast</button>`;
+  const charactersBtnHtml = `<button data-characterstoggle="1" style="color:var(--sub)" title="View characters">🎭 Characters</button>`;
+  const micsBtnHtml = `<button data-micstoggle="1" style="color:var(--sub)" title="View mic assignments">🎤 Mics</button>`;
+  nav.innerHTML = `<button data-hometab="1" style="color:var(--accent2)">🏠 All Shows</button>` +
+    TABS.map(t=>`<button data-tab="${t.id}" class="${state.tab===t.id?'active':''}">${t.label}</button>`).join('') +
+    act1PreBtnHtml + act2PreBtnHtml +
+    micsBtnHtml + charactersBtnHtml + scriptBtnHtml + castBtnHtml +
+    propsTabBtnHtml + toolsBtnHtml + propsBtnHtml;
+  const homeBtn = nav.querySelector('[data-hometab]');
+  if(homeBtn) homeBtn.onclick = ()=>{ state.currentShowId=null; activeSceneId=null; save(); render(); };
+  const toolsBtn = nav.querySelector('[data-toolstoggle]');
+  if(toolsBtn) toolsBtn.onclick = ()=>{ state.toolsHidden = !state.toolsHidden; save(); render(); };
+  const propsBtn = nav.querySelector('[data-propstoggle]');
+  if(propsBtn) propsBtn.onclick = ()=>{ state.propsHidden = !state.propsHidden; save(); render(); };
+  const scriptBtn = nav.querySelector('[data-scripttoggle]');
+  if(scriptBtn) scriptBtn.onclick = ()=>{ scriptPanelOpen = !scriptPanelOpen; renderScriptPanel(); };
+  const castBtn = nav.querySelector('[data-casttoggle]');
+  if(castBtn) castBtn.onclick = ()=>{ castPanelOpen = !castPanelOpen; renderCastPanel(); };
+  const charactersBtn = nav.querySelector('[data-characterstoggle]');
+  if(charactersBtn) charactersBtn.onclick = ()=>{ charactersPanelOpen = !charactersPanelOpen; renderCharactersPanel(); };
+  const micsBtn = nav.querySelector('[data-micstoggle]');
+  if(micsBtn) micsBtn.onclick = ()=>{ micsPanelOpen = !micsPanelOpen; renderMicsPanel(); };
+  const act1PreBtn = nav.querySelector('[data-act1pretoggle]');
+  if(act1PreBtn) act1PreBtn.onclick = ()=>{ act1PrePanelOpen = !act1PrePanelOpen; renderAct1PrePanel(); };
+  const act2PreBtn = nav.querySelector('[data-act2pretoggle]');
+  if(act2PreBtn) act2PreBtn.onclick = ()=>{ act2PrePanelOpen = !act2PrePanelOpen; renderAct2PrePanel(); };
+  nav.querySelectorAll('button[data-tab]').forEach(b=>b.onclick=()=>{ state.tab=b.dataset.tab; save(); render(); });
+}
+
+function wireTextSearch(ta, input, statusEl){
+  let lastPos = -1, lastQuery = '';
+  function positionsFor(q){
+    const text = ta.value.toLowerCase(); const needle = q.toLowerCase();
+    const out = []; let idx = text.indexOf(needle);
+    while(idx!==-1){ out.push(idx); idx = text.indexOf(needle, idx+1); }
+    return out;
+  }
+  function doFind(forward){
+    const q = input.value;
+    if(!q){ statusEl.textContent=''; lastQuery=''; lastPos=-1; return; }
+    const positions = positionsFor(q);
+    if(!positions.length){ statusEl.textContent='No matches'; return; }
+    if(q!==lastQuery){ lastQuery=q; lastPos=-1; }
+    const cursor = lastPos>=0 ? lastPos : (ta.selectionStart||0);
+    let target;
+    if(forward){ target = positions.find(p=>p>cursor); if(target===undefined) target = positions[0]; }
+    else{ const rev=[...positions].reverse(); target = rev.find(p=>p<cursor); if(target===undefined) target = positions[positions.length-1]; }
+    lastPos = target;
+    ta.focus();
+    ta.setSelectionRange(target, target+q.length);
+    statusEl.textContent = `${positions.indexOf(target)+1} of ${positions.length} matches`;
+  }
+  input.oninput = ()=>{ lastQuery=''; lastPos=-1; statusEl.textContent=''; };
+  input.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doFind(!e.shiftKey); } };
+  return { next: ()=>doFind(true), prev: ()=>doFind(false) };
+}
+function renderScriptPanel(){
+  const mount = document.getElementById('scriptDrawer');
+  if(!mount) return;
+  if(!scriptPanelOpen || !S()){ mount.innerHTML=''; return; }
+  const text = S().scriptText || '';
+  mount.innerHTML = `
+    <div class="scriptOverlay" id="scriptOverlayBg"></div>
+    <div class="scriptPanel">
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <h2 style="margin:0;flex:1">📜 Script</h2>
+        <button class="iconBtn" id="scriptCloseBtn" style="font-size:1.3rem">✕</button>
+      </div>
+      <div class="row">
+        <label class="btn sec sm" style="cursor:pointer;margin:0">📂 Load (.txt)
+          <input type="file" id="scriptFileInput" accept=".txt" style="display:none">
+        </label>
+        <button class="btn sm" id="scriptSaveBtn">💾 Save</button>
+        <button class="btn ghost sm" id="scriptExportBtn">⬇ Export</button>
+        ${text ? `<button class="btn ghost sm" id="scriptClearBtn">Clear</button>` : ''}
+      </div>
+      <div class="row" style="align-items:center">
+        <input id="scriptSearchInput" placeholder="🔍 Search in script..." style="flex:1">
+        <button class="btn ghost sm" id="scriptSearchPrev" style="flex:0 0 auto">▲</button>
+        <button class="btn ghost sm" id="scriptSearchNext" style="flex:0 0 auto">▼</button>
+      </div>
+      <div class="small" id="scriptSearchStatus"></div>
+      <textarea id="scriptTextArea" placeholder="Type or paste your script here, or load a .txt file above...">${esc(text)}</textarea>
+      <div class="small" id="scriptStatus" style="margin-top:4px"></div>
+    </div>`;
+  const close = ()=>{ scriptPanelOpen=false; renderScriptPanel(); };
+  document.getElementById('scriptCloseBtn').onclick = close;
+  document.getElementById('scriptOverlayBg').onclick = close;
+  const ta = document.getElementById('scriptTextArea');
+  const status = document.getElementById('scriptStatus');
+  const searchCtl = wireTextSearch(ta, document.getElementById('scriptSearchInput'), document.getElementById('scriptSearchStatus'));
+  document.getElementById('scriptSearchNext').onclick = searchCtl.next;
+  document.getElementById('scriptSearchPrev').onclick = searchCtl.prev;
+  const doSave = ()=>{ S().scriptText = ta.value; save(); if(status) status.textContent='Saved.'; };
+  ta.onchange = doSave;
+  document.getElementById('scriptSaveBtn').onclick = doSave;
+  document.getElementById('scriptExportBtn').onclick = async ()=>{
+    doSave();
+    const filename = safeFileName(S().name)+'-script.txt';
+    const ok = await saveFile(filename, ta.value);
+    if(status) status.textContent = ok ? ('Exported as '+filename) : 'Export cancelled or failed.';
+  };
+  const fileInput = document.getElementById('scriptFileInput');
+  if(fileInput) fileInput.onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ S().scriptText = reader.result; save(); renderScriptPanel(); };
+    reader.readAsText(f);
+  };
+  const clearBtn = document.getElementById('scriptClearBtn');
+  if(clearBtn) clearBtn.onclick = ()=>{ S().scriptText=''; save(); renderScriptPanel(); };
+}
+function renderCastPanel(){
+  const mount = document.getElementById('castDrawer');
+  if(!mount) return;
+  if(!castPanelOpen || !S()){ mount.innerHTML=''; return; }
+  const text = S().castText || '';
+  mount.innerHTML = `
+    <div class="scriptOverlay" id="castOverlayBg"></div>
+    <div class="scriptPanel">
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <h2 style="margin:0;flex:1">👥 Cast</h2>
+        <button class="iconBtn" id="castCloseBtn" style="font-size:1.3rem">✕</button>
+      </div>
+      <div class="row">
+        <label class="btn sec sm" style="cursor:pointer;margin:0">📂 Load (.txt)
+          <input type="file" id="castFileInput" accept=".txt" style="display:none">
+        </label>
+        <button class="btn sm" id="castSaveBtn">💾 Save</button>
+        <button class="btn ghost sm" id="castExportBtn">⬇ Export</button>
+        ${text ? `<button class="btn ghost sm" id="castClearBtn">Clear</button>` : ''}
+      </div>
+      <div class="row" style="align-items:center">
+        <input id="castSearchInput" placeholder="🔍 Search in cast list..." style="flex:1">
+        <button class="btn ghost sm" id="castSearchPrev" style="flex:0 0 auto">▲</button>
+        <button class="btn ghost sm" id="castSearchNext" style="flex:0 0 auto">▼</button>
+      </div>
+      <div class="small" id="castSearchStatus"></div>
+      <textarea id="castTextArea" placeholder="Type or paste your cast list here, or load a .txt file above...">${esc(text)}</textarea>
+      <div class="small" id="castStatus" style="margin-top:4px"></div>
+    </div>`;
+  const close = ()=>{ castPanelOpen=false; renderCastPanel(); };
+  document.getElementById('castCloseBtn').onclick = close;
+  document.getElementById('castOverlayBg').onclick = close;
+  const ta = document.getElementById('castTextArea');
+  const status = document.getElementById('castStatus');
+  const searchCtl = wireTextSearch(ta, document.getElementById('castSearchInput'), document.getElementById('castSearchStatus'));
+  document.getElementById('castSearchNext').onclick = searchCtl.next;
+  document.getElementById('castSearchPrev').onclick = searchCtl.prev;
+  const doSave = ()=>{ S().castText = ta.value; save(); if(status) status.textContent='Saved.'; };
+  ta.onchange = doSave;
+  document.getElementById('castSaveBtn').onclick = doSave;
+  document.getElementById('castExportBtn').onclick = async ()=>{
+    doSave();
+    const filename = safeFileName(S().name)+'-cast.txt';
+    const ok = await saveFile(filename, ta.value);
+    if(status) status.textContent = ok ? ('Exported as '+filename) : 'Export cancelled or failed.';
+  };
+  const fileInput = document.getElementById('castFileInput');
+  if(fileInput) fileInput.onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ S().castText = reader.result; save(); renderCastPanel(); };
+    reader.readAsText(f);
+  };
+  const clearBtn2 = document.getElementById('castClearBtn');
+  if(clearBtn2) clearBtn2.onclick = ()=>{ S().castText=''; save(); renderCastPanel(); };
+}
+function renderCharactersPanel(){
+  const mount = document.getElementById('charactersDrawer');
+  if(!mount) return;
+  if(!charactersPanelOpen || !S()){ mount.innerHTML=''; return; }
+  const text = S().charactersText || '';
+  mount.innerHTML = `
+    <div class="scriptOverlay" id="charactersOverlayBg"></div>
+    <div class="scriptPanel">
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <h2 style="margin:0;flex:1">🎭 Characters</h2>
+        <button class="iconBtn" id="charactersCloseBtn" style="font-size:1.3rem">✕</button>
+      </div>
+      <div class="row">
+        <label class="btn sec sm" style="cursor:pointer;margin:0">📂 Load (.txt)
+          <input type="file" id="charactersFileInput" accept=".txt" style="display:none">
+        </label>
+        <button class="btn sm" id="charactersSaveBtn">💾 Save</button>
+        <button class="btn ghost sm" id="charactersExportBtn">⬇ Export</button>
+        ${text ? `<button class="btn ghost sm" id="charactersClearBtn">Clear</button>` : ''}
+      </div>
+      <div class="row" style="align-items:center">
+        <input id="charactersSearchInput" placeholder="🔍 Search in characters..." style="flex:1">
+        <button class="btn ghost sm" id="charactersSearchPrev" style="flex:0 0 auto">▲</button>
+        <button class="btn ghost sm" id="charactersSearchNext" style="flex:0 0 auto">▼</button>
+      </div>
+      <div class="small" id="charactersSearchStatus"></div>
+      <textarea id="charactersTextArea" placeholder="Type or paste character descriptions/breakdowns here, or load a .txt file above...">${esc(text)}</textarea>
+      <div class="small" id="charactersStatus" style="margin-top:4px"></div>
+    </div>`;
+  const close = ()=>{ charactersPanelOpen=false; renderCharactersPanel(); };
+  document.getElementById('charactersCloseBtn').onclick = close;
+  document.getElementById('charactersOverlayBg').onclick = close;
+  const ta = document.getElementById('charactersTextArea');
+  const status = document.getElementById('charactersStatus');
+  const searchCtl = wireTextSearch(ta, document.getElementById('charactersSearchInput'), document.getElementById('charactersSearchStatus'));
+  document.getElementById('charactersSearchNext').onclick = searchCtl.next;
+  document.getElementById('charactersSearchPrev').onclick = searchCtl.prev;
+  const doSave = ()=>{ S().charactersText = ta.value; save(); if(status) status.textContent='Saved.'; };
+  ta.onchange = doSave;
+  document.getElementById('charactersSaveBtn').onclick = doSave;
+  document.getElementById('charactersExportBtn').onclick = async ()=>{
+    doSave();
+    const filename = safeFileName(S().name)+'-characters.txt';
+    const ok = await saveFile(filename, ta.value);
+    if(status) status.textContent = ok ? ('Exported as '+filename) : 'Export cancelled or failed.';
+  };
+  const fileInput = document.getElementById('charactersFileInput');
+  if(fileInput) fileInput.onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ S().charactersText = reader.result; save(); renderCharactersPanel(); };
+    reader.readAsText(f);
+  };
+  const clearBtn3 = document.getElementById('charactersClearBtn');
+  if(clearBtn3) clearBtn3.onclick = ()=>{ S().charactersText=''; save(); renderCharactersPanel(); };
+}
+function renderMicsPanel(){
+  const mount = document.getElementById('micsDrawer');
+  if(!mount) return;
+  if(!micsPanelOpen || !S()){ mount.innerHTML=''; return; }
+  const text = S().micsText || '';
+  mount.innerHTML = `
+    <div class="scriptOverlay" id="micsOverlayBg"></div>
+    <div class="scriptPanel">
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <h2 style="margin:0;flex:1">🎤 Mic Assignments</h2>
+        <button class="iconBtn" id="micsCloseBtn" style="font-size:1.3rem">✕</button>
+      </div>
+      <div class="row">
+        <label class="btn sec sm" style="cursor:pointer;margin:0">📂 Load (.txt)
+          <input type="file" id="micsFileInput" accept=".txt" style="display:none">
+        </label>
+        <button class="btn sm" id="micsSaveBtn">💾 Save</button>
+        <button class="btn ghost sm" id="micsExportBtn">⬇ Export</button>
+        ${text ? `<button class="btn ghost sm" id="micsClearBtn">Clear</button>` : ''}
+      </div>
+      <div class="row" style="align-items:center">
+        <input id="micsSearchInput" placeholder="🔍 Search in mic assignments..." style="flex:1">
+        <button class="btn ghost sm" id="micsSearchPrev" style="flex:0 0 auto">▲</button>
+        <button class="btn ghost sm" id="micsSearchNext" style="flex:0 0 auto">▼</button>
+      </div>
+      <div class="small" id="micsSearchStatus"></div>
+      <textarea id="micsTextArea" placeholder="Type or paste mic number / actor assignments here, or load a .txt file above...">${esc(text)}</textarea>
+      <div class="small" id="micsStatus" style="margin-top:4px"></div>
+    </div>`;
+  const close = ()=>{ micsPanelOpen=false; renderMicsPanel(); };
+  document.getElementById('micsCloseBtn').onclick = close;
+  document.getElementById('micsOverlayBg').onclick = close;
+  const ta = document.getElementById('micsTextArea');
+  const status = document.getElementById('micsStatus');
+  const searchCtl = wireTextSearch(ta, document.getElementById('micsSearchInput'), document.getElementById('micsSearchStatus'));
+  document.getElementById('micsSearchNext').onclick = searchCtl.next;
+  document.getElementById('micsSearchPrev').onclick = searchCtl.prev;
+  const doSave = ()=>{ S().micsText = ta.value; save(); if(status) status.textContent='Saved.'; };
+  ta.onchange = doSave;
+  document.getElementById('micsSaveBtn').onclick = doSave;
+  document.getElementById('micsExportBtn').onclick = async ()=>{
+    doSave();
+    const filename = safeFileName(S().name)+'-mics.txt';
+    const ok = await saveFile(filename, ta.value);
+    if(status) status.textContent = ok ? ('Exported as '+filename) : 'Export cancelled or failed.';
+  };
+  const fileInput = document.getElementById('micsFileInput');
+  if(fileInput) fileInput.onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ S().micsText = reader.result; save(); renderMicsPanel(); };
+    reader.readAsText(f);
+  };
+  const clearBtn4 = document.getElementById('micsClearBtn');
+  if(clearBtn4) clearBtn4.onclick = ()=>{ S().micsText=''; save(); renderMicsPanel(); };
+}
+function renderAct1PrePanel(){
+  const mount = document.getElementById('act1PreDrawer');
+  if(!mount) return;
+  if(!act1PrePanelOpen || !S()){ mount.innerHTML=''; return; }
+  const text = S().act1PreText || '';
+  mount.innerHTML = `
+    <div class="scriptOverlay" id="act1PreOverlayBg"></div>
+    <div class="scriptPanel">
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <h2 style="margin:0;flex:1">Act 1 Pre-Show</h2>
+        <button class="iconBtn" id="act1PreCloseBtn" style="font-size:1.3rem">✕</button>
+      </div>
+      <div class="row">
+        <label class="btn sec sm" style="cursor:pointer;margin:0">📂 Load (.txt)
+          <input type="file" id="act1PreFileInput" accept=".txt" style="display:none">
+        </label>
+        <button class="btn sm" id="act1PreSaveBtn">💾 Save</button>
+        <button class="btn ghost sm" id="act1PreExportBtn">⬇ Export</button>
+        ${text ? `<button class="btn ghost sm" id="act1PreClearBtn">Clear</button>` : ''}
+      </div>
+      <div class="row" style="align-items:center">
+        <input id="act1PreSearchInput" placeholder="🔍 Search..." style="flex:1">
+        <button class="btn ghost sm" id="act1PreSearchPrev" style="flex:0 0 auto">▲</button>
+        <button class="btn ghost sm" id="act1PreSearchNext" style="flex:0 0 auto">▼</button>
+      </div>
+      <div class="small" id="act1PreSearchStatus"></div>
+      <textarea id="act1PreTextArea" placeholder="Type or paste Act 1 pre-show checklist/notes here, or load a .txt file above...">${esc(text)}</textarea>
+      <div class="small" id="act1PreStatus" style="margin-top:4px"></div>
+    </div>`;
+  const close = ()=>{ act1PrePanelOpen=false; renderAct1PrePanel(); };
+  document.getElementById('act1PreCloseBtn').onclick = close;
+  document.getElementById('act1PreOverlayBg').onclick = close;
+  const ta = document.getElementById('act1PreTextArea');
+  const status = document.getElementById('act1PreStatus');
+  const searchCtl = wireTextSearch(ta, document.getElementById('act1PreSearchInput'), document.getElementById('act1PreSearchStatus'));
+  document.getElementById('act1PreSearchNext').onclick = searchCtl.next;
+  document.getElementById('act1PreSearchPrev').onclick = searchCtl.prev;
+  const doSave = ()=>{ S().act1PreText = ta.value; save(); if(status) status.textContent='Saved.'; };
+  ta.onchange = doSave;
+  document.getElementById('act1PreSaveBtn').onclick = doSave;
+  document.getElementById('act1PreExportBtn').onclick = async ()=>{
+    doSave();
+    const filename = safeFileName(S().name)+'-act1-preshow.txt';
+    const ok = await saveFile(filename, ta.value);
+    if(status) status.textContent = ok ? ('Exported as '+filename) : 'Export cancelled or failed.';
+  };
+  const fileInput = document.getElementById('act1PreFileInput');
+  if(fileInput) fileInput.onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ S().act1PreText = reader.result; save(); renderAct1PrePanel(); };
+    reader.readAsText(f);
+  };
+  const clearBtn5 = document.getElementById('act1PreClearBtn');
+  if(clearBtn5) clearBtn5.onclick = ()=>{ S().act1PreText=''; save(); renderAct1PrePanel(); };
+}
+function renderAct2PrePanel(){
+  const mount = document.getElementById('act2PreDrawer');
+  if(!mount) return;
+  if(!act2PrePanelOpen || !S()){ mount.innerHTML=''; return; }
+  const text = S().act2PreText || '';
+  mount.innerHTML = `
+    <div class="scriptOverlay" id="act2PreOverlayBg"></div>
+    <div class="scriptPanel">
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <h2 style="margin:0;flex:1">Act 2 Pre-Show</h2>
+        <button class="iconBtn" id="act2PreCloseBtn" style="font-size:1.3rem">✕</button>
+      </div>
+      <div class="row">
+        <label class="btn sec sm" style="cursor:pointer;margin:0">📂 Load (.txt)
+          <input type="file" id="act2PreFileInput" accept=".txt" style="display:none">
+        </label>
+        <button class="btn sm" id="act2PreSaveBtn">💾 Save</button>
+        <button class="btn ghost sm" id="act2PreExportBtn">⬇ Export</button>
+        ${text ? `<button class="btn ghost sm" id="act2PreClearBtn">Clear</button>` : ''}
+      </div>
+      <div class="row" style="align-items:center">
+        <input id="act2PreSearchInput" placeholder="🔍 Search..." style="flex:1">
+        <button class="btn ghost sm" id="act2PreSearchPrev" style="flex:0 0 auto">▲</button>
+        <button class="btn ghost sm" id="act2PreSearchNext" style="flex:0 0 auto">▼</button>
+      </div>
+      <div class="small" id="act2PreSearchStatus"></div>
+      <textarea id="act2PreTextArea" placeholder="Type or paste Act 2 pre-show checklist/notes here, or load a .txt file above...">${esc(text)}</textarea>
+      <div class="small" id="act2PreStatus" style="margin-top:4px"></div>
+    </div>`;
+  const close = ()=>{ act2PrePanelOpen=false; renderAct2PrePanel(); };
+  document.getElementById('act2PreCloseBtn').onclick = close;
+  document.getElementById('act2PreOverlayBg').onclick = close;
+  const ta = document.getElementById('act2PreTextArea');
+  const status = document.getElementById('act2PreStatus');
+  const searchCtl = wireTextSearch(ta, document.getElementById('act2PreSearchInput'), document.getElementById('act2PreSearchStatus'));
+  document.getElementById('act2PreSearchNext').onclick = searchCtl.next;
+  document.getElementById('act2PreSearchPrev').onclick = searchCtl.prev;
+  const doSave = ()=>{ S().act2PreText = ta.value; save(); if(status) status.textContent='Saved.'; };
+  ta.onchange = doSave;
+  document.getElementById('act2PreSaveBtn').onclick = doSave;
+  document.getElementById('act2PreExportBtn').onclick = async ()=>{
+    doSave();
+    const filename = safeFileName(S().name)+'-act2-preshow.txt';
+    const ok = await saveFile(filename, ta.value);
+    if(status) status.textContent = ok ? ('Exported as '+filename) : 'Export cancelled or failed.';
+  };
+  const fileInput = document.getElementById('act2PreFileInput');
+  if(fileInput) fileInput.onchange = (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ S().act2PreText = reader.result; save(); renderAct2PrePanel(); };
+    reader.readAsText(f);
+  };
+  const clearBtn6 = document.getElementById('act2PreClearBtn');
+  if(clearBtn6) clearBtn6.onclick = ()=>{ S().act2PreText=''; save(); renderAct2PrePanel(); };
+}
+function render(){
+  renderNav();
+  renderScriptPanel();
+  renderCastPanel();
+  renderCharactersPanel();
+  renderMicsPanel();
+  renderAct1PrePanel();
+  renderAct2PrePanel();
+  const titleEl = document.getElementById('appTitle');
+  if(titleEl) titleEl.textContent = S() ? ('🎭 '+S().name) : '🎭 Stage Manager';
+  document.title = S() ? (S().name+' — Stage Manager') : 'Stage Manager';
+  const app = document.getElementById('app');
+  if(!S()){ app.innerHTML = renderHome(); bindHomeEvents(); return; }
+  if(state.tab==='run'){ app.innerHTML = renderRun(); bindEvents(); initRunPanels(); return; }
+  else if(state.tab==='script') app.innerHTML = renderScript();
+  else if(state.tab==='props') app.innerHTML = renderProps();
+  else if(state.tab==='calls') app.innerHTML = renderCalls();
+  bindEvents();
+}
+
+// ---------- HOME (all shows) ----------
+function renderHome(){
+  const cards = state.shows.map(sh=>{
+    const sceneCount = sh.acts.reduce((n,a)=>n+a.scenes.length,0);
+    return `<div class="card">
+      <div class="row" style="align-items:center">
+        <input value="${esc(sh.name)}" data-showname="${sh.id}" style="font-size:1.05rem;font-weight:600;flex:3">
+        <button class="iconBtn" data-delshow="${sh.id}" title="Delete show">✕</button>
+      </div>
+      <div class="small" style="margin-bottom:10px">${sh.acts.length} act${sh.acts.length===1?'':'s'} · ${sceneCount} scene${sceneCount===1?'':'s'} · ${sh.props.length} props · ${(sh.calls||[]).length} calls</div>
+      <div class="row">
+        <button class="btn" data-openshow="${sh.id}|run">▶ Run Show</button>
+        <button class="btn ghost" data-openshow="${sh.id}|script">Edit Scenes</button>
+        <button class="btn ghost sm" data-backupshow="${sh.id}" style="flex:0 0 auto">⬇ Backup</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="card">No shows yet — add your first one below, or restore one from a backup file.</div>';
+  return `<h2 style="margin-bottom:12px">🎭 Your Shows</h2>${cards}
+    <div class="row">
+      <button class="btn sec" id="addShowBtn">+ Add New Show</button>
+      <button class="btn ghost" id="backupAllBtn">⬇ Backup All Shows</button>
+      <label class="btn ghost" style="cursor:pointer;margin:0;text-align:center">⬆ Restore from Backup
+        <input type="file" id="restoreShowInput" accept=".json,.txt" style="display:none">
+      </label>
+    </div>
+    <div class="small" id="homeStatus" style="margin-top:6px"></div>`;
+}
+function bindHomeEvents(){
+  document.querySelectorAll('[data-openshow]').forEach(el=>el.onclick=()=>{
+    const [id,tab] = el.dataset.openshow.split('|');
+    state.currentShowId = id; state.tab = tab; activeSceneId = null; save(); render();
+  });
+  document.querySelectorAll('[data-showname]').forEach(el=>el.onchange=()=>{
+    const sh = state.shows.find(s=>s.id===el.dataset.showname); if(sh){ sh.name=el.value; save(); }
+  });
+  document.querySelectorAll('[data-delshow]').forEach(el=>el.onclick=()=>{
+    if(!confirm('Delete this show and all its data? This cannot be undone.')) return;
+    state.shows = state.shows.filter(s=>s.id!==el.dataset.delshow); save(); render();
+  });
+  document.querySelectorAll('[data-backupshow]').forEach(el=>el.onclick=()=>backupShow(el.dataset.backupshow));
+  const backupAllBtn = document.getElementById('backupAllBtn');
+  if(backupAllBtn) backupAllBtn.onclick = backupAllShows;
+  const addBtn = document.getElementById('addShowBtn');
+  if(addBtn) addBtn.onclick=()=>{
+    const sh = newShow('New Show '+(state.shows.length+1), false);
+    state.shows.push(sh); save(); render();
+  };
+  const restoreInput = document.getElementById('restoreShowInput');
+  if(restoreInput) restoreInput.onchange = (e)=>{ const f=e.target.files[0]; if(f) restoreShowFromFile(f); };
+}
+async function backupShow(showId){
+  const sh = state.shows.find(s=>s.id===showId); if(!sh) return;
+  const status = document.getElementById('homeStatus');
+  const payload = { app:'stage-manager-show-backup', version:1, show: sh };
+  const filename = safeFileName(sh.name)+'-backup.json';
+  const ok = await saveFile(filename, JSON.stringify(payload, null, 2));
+  if(status) status.textContent = ok ? ('Backed up as '+filename) : 'Backup cancelled or failed.';
+}
+async function backupAllShows(){
+  const status = document.getElementById('homeStatus');
+  if(!state.shows.length){ if(status) status.textContent='No shows to back up yet.'; return; }
+  const payload = { app:'stage-manager-full-backup', version:1, shows: state.shows };
+  const stamp = new Date().toISOString().slice(0,10);
+  const filename = `all-shows-backup-${stamp}.json`;
+  const ok = await saveFile(filename, JSON.stringify(payload, null, 2));
+  if(status) status.textContent = ok ? `Backed up all ${state.shows.length} shows as ${filename}` : 'Backup cancelled or failed.';
+}
+function restoreShowFromFile(file){
+  const status = document.getElementById('homeStatus');
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const payload = JSON.parse(reader.result);
+      if(payload && Array.isArray(payload.shows)){
+        let count=0;
+        payload.shows.forEach(sh=>{
+          if(!sh || !Array.isArray(sh.acts)) return;
+          const restored = { id: uid(), name: sh.name||'Restored Show', acts: sh.acts||[], props: sh.props||[], cues: sh.cues||[], calls: sh.calls||[], scriptText: sh.scriptText||'', castText: sh.castText||'', charactersText: sh.charactersText||'', micsText: sh.micsText||'', act1PreText: sh.act1PreText||'', act2PreText: sh.act2PreText||'' };
+          normalizeShowTimers(restored);
+          state.shows.push(restored);
+          count++;
+        });
+        save(); render();
+        const s2=document.getElementById('homeStatus'); if(s2) s2.textContent = `Restored ${count} show${count===1?'':'s'} from ${file.name}`;
+        return;
+      }
+      const sh = payload && payload.show ? payload.show : (payload && payload.acts ? payload : null);
+      if(!sh || !Array.isArray(sh.acts)) throw new Error('bad shape');
+      const restored = { id: uid(), name: (sh.name||'Restored Show'), acts: sh.acts||[], props: sh.props||[], cues: sh.cues||[], calls: sh.calls||[], scriptText: sh.scriptText||'', castText: sh.castText||'', charactersText: sh.charactersText||'', micsText: sh.micsText||'', act1PreText: sh.act1PreText||'', act2PreText: sh.act2PreText||'' };
+      normalizeShowTimers(restored);
+      state.shows.push(restored); save(); render();
+      const s2=document.getElementById('homeStatus'); if(s2) s2.textContent = 'Restored "'+restored.name+'" from '+file.name;
+    }catch(e){ if(status) status.textContent="That file doesn't look like a valid show backup."; }
+  };
+  reader.onerror = ()=>{ if(status) status.textContent='Could not read that file.'; };
+  reader.readAsText(file);
+}
+
+// ---------- RUN SHOW ----------
+function resetBtnHtml(kind,id,label){
+  label = label || 'Reset';
+  if(!state.editMode){
+    const lockedText = label.length<=2 ? '🔒' : ('🔒 '+label);
+    return `<button class="btn ghost sm" disabled title="Unlock Edit Mode to reset timers" style="opacity:.35;cursor:not-allowed;flex:0 0 auto">${lockedText}</button>`;
+  }
+  return `<button class="btn ghost sm" data-timerreset="${kind}|${id}" style="flex:0 0 auto">${label}</button>`;
+}
+function renderRun(){
+  const timeline = buildRunTimeline();
+  if(!timeline.length) return `<div class="card">No scenes yet. Add some in "Scenes".</div>`;
+  const activeEntry = timeline.find(e=>e.id===activeSceneId) || timeline[0];
+  const currentAct = activeEntry.act;
+
+  let actNav = S().acts.length>1 ? `<div class="sceneNavList">` + S().acts.map(a=>{
+    return `<button class="sceneNavBtn ${a.id===currentAct.id?'current':''}" data-gotoact="${a.id}">${esc(a.name)}</button>`;
+  }).join('') + `</div>` : '';
+
+  let nav = `<div class="sceneNavList">` + timeline.filter(e=>e.act.id===currentAct.id).map(entry=>{
+    const label = entry.kind==='intermission' ? `🍹 Intermission` : entry.scene.name;
+    return `<button class="sceneNavBtn" data-goto="${entry.id}">${label}</button>`;
+  }).join('') + `</div>`;
+
+  let panels = timeline.map((entry, idx)=>{
+    const nextEntry = timeline[idx+1];
+    const relevantCalls = (nextEntry && nextEntry.kind==='scene') ? ensureCalls(S()).filter(c=>c.sceneId===nextEntry.scene.id) : [];
+    const hostKind = entry.kind==='scene' ? 'scene' : 'intermission';
+    const hostObj = entry.kind==='scene' ? entry.scene : entry.intermission;
+    const callListHtml = relevantCalls.length ? relevantCalls.map(call=>{
+      const ct = ensureCallTimer(call);
+      const called = (ct.running || ct.elapsed>0) && (ct.target-getElapsed(ct))<=0;
+      return `<li class="item ${called?'callDue':''}" data-callitem="${call.id}">
+        <span>${esc(call.text)}</span>
+      </li>`;
+    }).join('') : '';
+    const callsSectionHtml = relevantCalls.length ? `<h3>📢 Calls (for ${esc(nextEntry.scene.name)})</h3><ul class="plain">${callListHtml}</ul>` : '';
+
+    if(entry.kind==='intermission'){
+      const im = entry.intermission;
+      const it = ensureTimer(im);
+      const remain = it.target - getElapsed(it);
+      return `<div class="scenePanel" data-panel="${entry.id}">
+        <div class="card">
+          <h2>🍹 Intermission</h2>
+          <div class="small" style="margin-bottom:10px">After ${esc(entry.act.name)}</div>
+          <div class="row" style="align-items:center;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:6px">
+            <strong style="flex:0 0 auto">⏱ Intermission Timer</strong>
+            <span data-timerdisplay data-timerkind="intermission" data-timerid="${im.id}" class="${remain<0?'overtime':''}" style="font-family:monospace;font-size:1.15rem;flex:0 0 auto">${formatCountdown(remain)}</span>
+            <button class="btn sm" data-timertoggle="intermission|${im.id}" style="flex:0 0 auto">${it.running?'Pause':'Start'}</button>
+            ${resetBtnHtml('intermission', im.id)}
+          </div>
+          ${callsSectionHtml}
+          <div class="row" style="margin-top:12px">
+            <button class="btn ghost" data-nextscene="${entry.id}">Next Scene →</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    const {act, scene} = entry;
+    const props = S().props.filter(p=>p.sceneId===scene.id);
+    const beats = scene.beats.map(b=>{
+      const bt = ensureTimer(b);
+      const remain = bt.target - getElapsed(bt);
+      return `<div class="beatRow" data-beatrow="${b.id}" style="${bt.running?'background:#fff3b0;border-radius:6px;padding-left:6px':''}">
+        <span class="tag">${b.type==='line'?'Title':'Song'}</span>
+        <span data-beattextel="${b.id}" style="${bt.running?'color:#000;font-weight:700':''}">${esc(b.title)}</span>
+        <span data-timerdisplay data-timerkind="beat" data-timerid="${b.id}" class="${remain<0?'overtime':''} ${bt.running?'timerActive':''}" style="margin-left:auto;font-family:monospace;font-size:.85rem">${formatCountdown(remain)}</span>
+        <button class="btn ghost sm" data-timertoggle="beat|${b.id}">${bt.running?'⏸':'▶'}</button>
+        ${resetBtnHtml('beat', b.id, '↺')}
+      </div>`;
+    }).join('') || '<div class="small">No songs/lines listed.</div>';
+    const at = ensureTimer(act);
+    const st = ensureTimer(scene);
+    const actTimerBlock = `<div class="row" style="align-items:center;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:6px">
+      <strong style="flex:0 0 auto">⏱ ${esc(act.name)} Timer</strong>
+      <span data-timerdisplay data-timerkind="act" data-timerid="${act.id}" class="${(at.target-getElapsed(at))<0?'overtime':''}" style="font-family:monospace;font-size:1.15rem;flex:0 0 auto">${formatCountdown(at.target-getElapsed(at))}</span>
+      <button class="btn sm" data-timertoggle="act|${act.id}" style="flex:0 0 auto">${at.running?'Pause':'Start'}</button>
+      ${resetBtnHtml('act', act.id)}
+    </div>
+    <div class="row" style="align-items:center;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:6px">
+      <strong style="flex:0 0 auto">⏱ Scene Timer</strong>
+      <span data-timerdisplay data-timerkind="scene" data-timerid="${scene.id}" class="${(st.target-getElapsed(st))<0?'overtime':''}" style="font-family:monospace;font-size:1.15rem;flex:0 0 auto">${formatCountdown(st.target-getElapsed(st))}</span>
+      <button class="btn sm" data-timertoggle="scene|${scene.id}" style="flex:0 0 auto">${st.running?'Pause':'Start'}</button>
+      ${resetBtnHtml('scene', scene.id)}
+    </div>`;
+    const propList = props.length ? props.map(p=>`<li class="item"><span>${esc(p.name)}</span><span class="badge ${statusClass(p.status)}">${p.status}</span></li>`).join('') : '<div class="small">No props tagged.</div>';
+    const callsForThisScene = ensureCalls(S()).filter(c=>c.sceneId===scene.id);
+    const callsForThisSceneHtml = callsForThisScene.length ? callsForThisScene.map(c=>{
+      const ct = ensureCallTimer(c);
+      const called = (ct.running || ct.elapsed>0) && (ct.target-getElapsed(ct))<=0;
+      return `<li class="item ${called?'callDue':''}" data-callitem="${c.id}"><span>${esc(c.text)}</span></li>`;
+    }).join('') : '';
+    return `<div class="scenePanel" data-panel="${entry.id}">
+      <div class="card">
+        <h2>${esc(act.name)} — ${esc(scene.name)}</h2>
+        ${actTimerBlock}
+        ${scene.notes ? `<p class="small">📝 ${esc(scene.notes)}</p>` : ''}
+        <h3>Songs & Lines</h3>${beats}
+        ${state.propsHidden ? '' : `<h3>Props</h3><ul class="plain">${propList}</ul>`}
+        ${callsForThisScene.length ? `<h3>📢 Calls set for this entrance</h3><ul class="plain">${callsForThisSceneHtml}</ul>` : ''}
+        ${callsSectionHtml}
+        <div class="row" style="margin-top:12px">
+          <button class="btn ghost" data-nextscene="${entry.id}">Next Scene →</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const sceneCount = timeline.filter(e=>e.kind==='scene').length;
+  const toolbarHtml = state.toolsHidden ? '' : `<div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn sec sm" id="exportTimersBtn">📄 Export Timing Sheet (.txt)</button>
+    <label class="btn ghost sm" style="cursor:pointer;margin:0">📂 Load Timing Sheet
+      <input type="file" id="importTimersInput" accept=".txt" style="display:none">
+    </label>
+    <button class="btn ${state.editMode?'sec':'ghost'} sm" id="editModeBtn" style="margin-left:auto">${state.editMode?'🔓 Edit Mode: ON':'🔒 Edit Mode: OFF'}</button>
+    ${state.editMode ? `<button class="btn ghost sm" id="resetAllBtn" style="border-color:var(--bad);color:var(--bad)">🔄 Reset All Timers</button>` : ''}
+    <span class="small" id="timingSheetStatus"></span>
+  </div>
+  ${state.editMode ? `<div class="small" style="color:var(--bad);margin-bottom:8px">⚠ Edit Mode is on — timer Reset buttons are active. Turn it off to prevent accidental resets during the show.</div>` : ''}`;
+  return `${toolbarHtml}
+  <div class="small" style="margin-bottom:10px">${sceneCount} scene${sceneCount===1?'':'s'} in the show</div>
+  ${state.toolsHidden ? '' : actNav}${state.toolsHidden ? '' : nav}${panels}`;
+}
+function initRunPanels(){
+  const panelsEls = document.querySelectorAll('.scenePanel');
+  if(!panelsEls.length) return;
+  const found = activeSceneId && document.querySelector('.scenePanel[data-panel="'+activeSceneId+'"]');
+  panelsEls.forEach((p,i)=>{ p.classList.toggle('show', found ? p===found : i===0); });
+  const navBtns = document.querySelectorAll('[data-goto]');
+  navBtns.forEach((b,i)=>{ b.classList.toggle('current', found ? b.dataset.goto===activeSceneId : i===0); });
+  if(!found && navBtns.length) activeSceneId = navBtns[0].dataset.goto;
+}
+
+function statusClass(s){ return s==='onstage'?'b-ok':s==='missing'?'b-bad':'b-idle'; }
+function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- SCRIPT / SCENES ----------
+function renderScript(){
+  let acts = S().acts.map(act=>{
+    let scenes = act.scenes.map(sc=>{
+      let beats = sc.beats.map(b=>`<div class="beatRow">
+        <select data-beattype="${act.id}|${sc.id}|${b.id}" style="max-width:90px">
+          <option value="line" ${b.type==='line'?'selected':''}>Title</option>
+          <option value="song" ${b.type==='song'?'selected':''}>Song</option>
+        </select>
+        <input value="${esc(b.title)}" data-beattitle="${act.id}|${sc.id}|${b.id}" placeholder="Title / description">
+        <input data-beattime="${act.id}|${sc.id}|${b.id}" value="${formatTime(ensureTimer(b).target)}" placeholder="00:00" style="max-width:70px" title="Duration (mm:ss)">
+        <button class="iconBtn" data-delbeat="${act.id}|${sc.id}|${b.id}">✕</button>
+      </div>`).join('');
+      return `<div class="card">
+        <div class="row"><input value="${esc(sc.name)}" data-scenename="${act.id}|${sc.id}" style="font-weight:600"></input>
+        <button class="btn ghost sm" data-delscene="${act.id}|${sc.id}">Delete Scene</button></div>
+        <div class="row" style="align-items:center">
+          <label class="small" style="flex:0 0 auto">Countdown From (mm:ss)</label>
+          <input data-scenetime="${act.id}|${sc.id}" value="${formatTime(ensureTimer(sc).target)}" placeholder="00:00" style="max-width:90px">
+        </div>
+        ${beats}
+        <button class="btn sec sm" data-addbeat="${act.id}|${sc.id}" style="margin-top:6px">+ Add Song/Line</button>
+        <h3>Notes</h3>
+        <textarea data-scenenotes="${act.id}|${sc.id}" placeholder="Blocking, transitions, reminders...">${esc(sc.notes)}</textarea>
+      </div>`;
+    }).join('');
+    const im = ensureIntermission(act);
+    return `<div class="actWrap">
+      <div class="row"><div class="actTitle" style="flex:3"><input value="${esc(act.name)}" data-actname="${act.id}" style="font-size:1rem;font-weight:600;border:none;background:transparent;color:var(--accent);padding:0"></div>
+      <button class="btn ghost sm" data-delact="${act.id}">Delete Act</button></div>
+      <div class="row" style="align-items:center;margin-bottom:10px">
+        <label class="small" style="flex:0 0 auto">Act Countdown From (mm:ss)</label>
+        <input data-acttime="${act.id}" value="${formatTime(ensureTimer(act).target)}" placeholder="00:00" style="max-width:90px">
+      </div>
+      ${scenes}
+      <button class="btn sec sm" data-addscene="${act.id}">+ Add Scene</button>
+      <div class="card" style="margin-top:10px;background:var(--bg)">
+        <label class="row" style="align-items:center;cursor:pointer">
+          <input type="checkbox" data-intermissionenabled="${act.id}" ${im.enabled?'checked':''} style="flex:0 0 auto;width:auto">
+          <span style="flex:1">🍹 Add Intermission after ${esc(act.name)}</span>
+        </label>
+        ${im.enabled ? `<div class="row" style="align-items:center;margin-top:6px">
+          <label class="small" style="flex:0 0 auto">Intermission Length (mm:ss)</label>
+          <input data-intermissiontime="${act.id}" value="${formatTime(ensureTimer(im).target)}" placeholder="00:00" style="max-width:90px">
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  return acts + `<button class="btn" data-addact="1">+ Add Act</button>`;
+}
+
+// ---------- PROPS ----------
+function renderProps(){
+  const scenes = allScenes();
+  const sceneOpts = scenes.map(s=>`<option value="${s.scene.id}">${esc(sceneLabel(s.act.name,s.scene.name))}</option>`).join('');
+  const rows = S().props.map(p=>{
+    const sc = scenes.find(s=>s.scene.id===p.sceneId);
+    return `<li class="item">
+      <span><strong>${esc(p.name)}</strong><br><span class="meta">${sc?esc(sceneLabel(sc.act.name,sc.scene.name)):'Unassigned'}${p.notes?' · '+esc(p.notes):''}</span></span>
+      <span class="row" style="flex:0 0 auto;gap:6px">
+        <select data-propstatus="${p.id}">
+          <option value="preset" ${p.status==='preset'?'selected':''}>Preset</option>
+          <option value="onstage" ${p.status==='onstage'?'selected':''}>Onstage</option>
+          <option value="missing" ${p.status==='missing'?'selected':''}>Missing</option>
+        </select>
+        <button class="iconBtn" data-delprop="${p.id}">✕</button>
+      </span>
+    </li>`;
+  }).join('') || '<div class="small">No props yet.</div>';
+  return `<div class="card">
+    <h2>Props List</h2>
+    <ul class="plain">${rows}</ul>
+    <h3>Add a Prop</h3>
+    <div class="row">
+      <input id="newPropName" placeholder="Prop name">
+      <select id="newPropScene"><option value="">— scene —</option>${sceneOpts}</select>
+    </div>
+    <div class="row"><input id="newPropNotes" placeholder="Notes (optional)"></div>
+    <button class="btn" id="addPropBtn">+ Add Prop</button>
+  </div>`;
+}
+
+// ---------- CUES ----------
+function ensureCalls(show){
+  if(!Array.isArray(show.calls)) show.calls = [];
+  return show.calls;
+}
+function renderCalls(){
+  const calls = ensureCalls(S());
+  const scenes = allScenes();
+  const sceneOpts = scenes.map(s=>`<option value="${s.scene.id}">${esc(sceneLabel(s.act.name,s.scene.name))}</option>`).join('');
+  const rows = calls.map(c=>{
+    const target = scenes.find(s=>s.scene.id===c.sceneId);
+    return `<li class="item">
+      <span><strong>${formatTime(c.leadSeconds*1000)}</strong> before ${target?esc(sceneLabel(target.act.name,target.scene.name)):'(scene deleted)'}<br><span class="meta">${esc(c.text)}</span></span>
+      <button class="iconBtn" data-delcall="${c.id}">✕</button>
+    </li>`;
+  }).join('') || '<div class="small">No calls set up yet.</div>';
+  return `<div class="card">
+    <h2>📢 Calls</h2>
+    <p class="small">Each call fires automatically — with a beep — during the scene (or intermission) right before the one you pick, once its countdown reaches your set lead time. Write whatever you actually want announced.</p>
+    <ul class="plain">${rows}</ul>
+    <h3>Add a Call</h3>
+    <div class="row">
+      <input id="newCallText" placeholder="What to call (e.g. Sarah — places for Scene 4)">
+    </div>
+    <div class="row">
+      <select id="newCallScene"><option value="">— they're needed on stage for —</option>${sceneOpts}</select>
+      <input id="newCallLead" placeholder="mm:ss before" style="max-width:120px">
+    </div>
+    <button class="btn" id="addCallBtn">+ Add Call</button>
+  </div>`;
+}
+
+// ---------- EVENTS ----------
+function bindEvents(){
+  // run show
+  const exportBtn = document.getElementById('exportTimersBtn');
+  if(exportBtn) exportBtn.onclick = exportTimers;
+  const importInput = document.getElementById('importTimersInput');
+  if(importInput) importInput.onchange = (e)=>{ const f=e.target.files[0]; if(f) handleImportFile(f); };
+  const editModeBtn = document.getElementById('editModeBtn');
+  if(editModeBtn) editModeBtn.onclick = ()=>{ state.editMode = !state.editMode; save(); render(); };
+  const resetAllBtn = document.getElementById('resetAllBtn');
+  if(resetAllBtn) resetAllBtn.onclick = ()=>{
+    if(resetAllBtn.dataset.armed==='1'){
+      resetAllTimers();
+    } else {
+      resetAllBtn.dataset.armed = '1';
+      resetAllBtn.textContent = '⚠ Click again to confirm';
+      setTimeout(()=>{
+        if(resetAllBtn.isConnected){ resetAllBtn.dataset.armed=''; resetAllBtn.textContent='🔄 Reset All Timers'; }
+      }, 4000);
+    }
+  };
+  document.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>showScenePanel(b.dataset.goto));
+  document.querySelectorAll('[data-gotoact]').forEach(el=>el.onclick=()=>{
+    const timeline = buildRunTimeline();
+    const firstEntry = timeline.find(e=>e.act.id===el.dataset.gotoact);
+    if(firstEntry){ leaveEntry(activeSceneId); activeSceneId = firstEntry.id; save(); render(); }
+  });
+  document.querySelectorAll('[data-nextscene]').forEach(b=>b.onclick=()=>{
+    const timeline = buildRunTimeline();
+    const idx = timeline.findIndex(e=>e.id===b.dataset.nextscene);
+    if(idx>=0 && idx<timeline.length-1){
+      const next = timeline[idx+1];
+      if(next.act.id !== timeline[idx].act.id){ leaveEntry(activeSceneId); activeSceneId = next.id; save(); render(); }
+      else showScenePanel(next.id);
+    }
+  });
+  document.querySelectorAll('[data-timertoggle]').forEach(el=>el.onclick=()=>{
+    const [kind,id]=el.dataset.timertoggle.split('|');
+    const obj=timerObjFor(kind,id); if(!obj) return;
+    const t=ensureTimer(obj);
+    const wasFreshStart = !t.running && t.elapsed===0;
+    if(t.running){
+      t.elapsed=getElapsed(t); t.running=false; t.startedAt=null;
+      if(kind==='scene'||kind==='intermission'||kind==='act') pauseCallsFor(id);
+      if(kind==='scene') pauseBeatsIn(obj);
+    } else {
+      t.running=true; t.startedAt=Date.now();
+      if(wasFreshStart) cascadeStart(kind,obj);
+      else if(kind==='scene'||kind==='intermission'||kind==='act') resumeCallsFor(id);
+    }
+    save();
+    render();
+  });
+  document.querySelectorAll('[data-timerreset]').forEach(el=>el.onclick=()=>{
+    const [kind,id]=el.dataset.timerreset.split('|');
+    const obj=timerObjFor(kind,id); if(!obj) return;
+    const t=ensureTimer(obj);
+    t.elapsed=0; t.running=false; t.startedAt=null; save();
+    const wrap=el.closest('.row,.beatRow');
+    const disp=wrap && wrap.querySelector('[data-timerdisplay]');
+    if(disp){ disp.textContent = formatCountdown(t.target); disp.classList.toggle('overtime', t.target<0); }
+    const tgl=wrap && wrap.querySelector('[data-timertoggle]'); if(tgl) tgl.textContent = (kind==='act'||kind==='scene'||kind==='intermission')?'Start':'▶';
+  });
+
+  // script editing
+  document.querySelectorAll('[data-actname]').forEach(el=>el.onchange=()=>{
+    const act = S().acts.find(a=>a.id===el.dataset.actname); act.name=el.value; save();
+  });
+  document.querySelectorAll('[data-scenename]').forEach(el=>el.onchange=()=>{
+    const [aId,sId]=el.dataset.scenename.split('|'); const sc=findScene(aId,sId); sc.name=el.value; save();
+  });
+  document.querySelectorAll('[data-scenenotes]').forEach(el=>el.onchange=()=>{
+    const [aId,sId]=el.dataset.scenenotes.split('|'); const sc=findScene(aId,sId); sc.notes=el.value; save();
+  });
+  document.querySelectorAll('[data-scenetime]').forEach(el=>el.onchange=()=>{
+    const [aId,sId]=el.dataset.scenetime.split('|'); const sc=findScene(aId,sId);
+    const ms = parseTimeToMs(el.value);
+    const t = ensureTimer(sc);
+    if(ms===null){ el.value=formatTime(t.target); return; }
+    t.target = ms; save();
+    el.value = formatTime(t.target);
+  });
+  document.querySelectorAll('[data-acttime]').forEach(el=>el.onchange=()=>{
+    const act = S().acts.find(a=>a.id===el.dataset.acttime);
+    const ms = parseTimeToMs(el.value);
+    const t = ensureTimer(act);
+    if(ms===null){ el.value=formatTime(t.target); return; }
+    t.target = ms; save();
+    el.value = formatTime(t.target);
+  });
+  document.querySelectorAll('[data-intermissionenabled]').forEach(el=>el.onchange=()=>{
+    const act = S().acts.find(a=>a.id===el.dataset.intermissionenabled);
+    const im = ensureIntermission(act);
+    im.enabled = el.checked; save(); render();
+  });
+  document.querySelectorAll('[data-intermissiontime]').forEach(el=>el.onchange=()=>{
+    const act = S().acts.find(a=>a.id===el.dataset.intermissiontime);
+    const im = ensureIntermission(act);
+    const ms = parseTimeToMs(el.value); const t=ensureTimer(im);
+    if(ms===null){ el.value=formatTime(t.target); return; }
+    t.target=ms; save(); el.value=formatTime(t.target);
+  });
+  document.querySelectorAll('[data-beattype]').forEach(el=>el.onchange=()=>{
+    const [aId,sId,bId]=el.dataset.beattype.split('|'); const b=findBeat(aId,sId,bId); b.type=el.value; save();
+  });
+  document.querySelectorAll('[data-beattitle]').forEach(el=>el.onchange=()=>{
+    const [aId,sId,bId]=el.dataset.beattitle.split('|'); const b=findBeat(aId,sId,bId); b.title=el.value; save();
+  });
+  document.querySelectorAll('[data-beattime]').forEach(el=>el.onchange=()=>{
+    const [aId,sId,bId]=el.dataset.beattime.split('|'); const b=findBeat(aId,sId,bId);
+    const ms = parseTimeToMs(el.value); const t=ensureTimer(b);
+    if(ms===null){ el.value=formatTime(t.target); return; }
+    t.target=ms; save(); el.value=formatTime(t.target);
+  });
+  document.querySelectorAll('[data-delbeat]').forEach(el=>el.onclick=()=>{
+    const [aId,sId,bId]=el.dataset.delbeat.split('|'); const sc=findScene(aId,sId); sc.beats=sc.beats.filter(b=>b.id!==bId); save(); render();
+  });
+  document.querySelectorAll('[data-addbeat]').forEach(el=>el.onclick=()=>{
+    const [aId,sId]=el.dataset.addbeat.split('|'); const sc=findScene(aId,sId); sc.beats.push({id:uid(),type:'line',title:''}); save(); render();
+  });
+  document.querySelectorAll('[data-delscene]').forEach(el=>el.onclick=()=>{
+    const [aId,sId]=el.dataset.delscene.split('|'); const act=S().acts.find(a=>a.id===aId); act.scenes=act.scenes.filter(s=>s.id!==sId); save(); render();
+  });
+  document.querySelectorAll('[data-addscene]').forEach(el=>el.onclick=()=>{
+    const act = S().acts.find(a=>a.id===el.dataset.addscene); act.scenes.push({id:uid(),name:'Scene '+(act.scenes.length+1),notes:'',beats:[]}); save(); render();
+  });
+  document.querySelectorAll('[data-delact]').forEach(el=>el.onclick=()=>{
+    S().acts = S().acts.filter(a=>a.id!==el.dataset.delact); save(); render();
+  });
+  document.querySelectorAll('[data-addact]').forEach(el=>el.onclick=()=>{
+    S().acts.push({id:uid(),name:'Act '+(S().acts.length+1),scenes:[]}); save(); render();
+  });
+
+  // props
+  const addPropBtn = document.getElementById('addPropBtn');
+  if(addPropBtn) addPropBtn.onclick=()=>{
+    const name=document.getElementById('newPropName').value.trim();
+    if(!name) return;
+    S().props.push({id:uid(),name,sceneId:document.getElementById('newPropScene').value,notes:document.getElementById('newPropNotes').value,status:'preset'});
+    save(); render();
+  };
+  document.querySelectorAll('[data-propstatus]').forEach(el=>el.onchange=()=>{
+    const p=S().props.find(x=>x.id===el.dataset.propstatus); p.status=el.value; save(); render();
+  });
+  document.querySelectorAll('[data-delprop]').forEach(el=>el.onclick=()=>{
+    S().props=S().props.filter(p=>p.id!==el.dataset.delprop); save(); render();
+  });
+
+  // calls
+  const addCallBtn = document.getElementById('addCallBtn');
+  if(addCallBtn) addCallBtn.onclick=()=>{
+    const text = document.getElementById('newCallText').value.trim();
+    const sceneId = document.getElementById('newCallScene').value;
+    const ms = parseTimeToMs(document.getElementById('newCallLead').value);
+    if(!text || !sceneId || ms===null || ms<=0) return;
+    ensureCalls(S()).push({ id: uid(), text, sceneId, leadSeconds: Math.round(ms/1000) });
+    save(); render();
+  };
+  document.querySelectorAll('[data-delcall]').forEach(el=>el.onclick=()=>{
+    S().calls = ensureCalls(S()).filter(c=>c.id!==el.dataset.delcall);
+    save(); render();
+  });
+}
+
+function leaveEntry(id){
+  if(!id || !S()) return;
+  const timeline = buildRunTimeline();
+  const current = timeline.find(e=>e.id===id);
+  if(current && current.kind==='scene') pauseBeatsIn(current.scene);
+}
+function showScenePanel(id){
+  if(id!==activeSceneId){ leaveEntry(activeSceneId); save(); }
+  activeSceneId = id;
+  document.querySelectorAll('.scenePanel').forEach(p=>p.classList.toggle('show', p.dataset.panel===id));
+  document.querySelectorAll('[data-goto]').forEach(b=>b.classList.toggle('current', b.dataset.goto===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function findScene(aId,sId){ return S().acts.find(a=>a.id===aId).scenes.find(s=>s.id===sId); }
+function findBeat(aId,sId,bId){ return findScene(aId,sId).beats.find(b=>b.id===bId); }
+
+function tickBeatAutoAdvance(){
+  if(!S()) return;
+  let changed=false;
+  S().acts.forEach(act=>{
+    act.scenes.forEach(scene=>{
+      scene.beats.forEach((b,idx)=>{
+        const t=ensureTimer(b);
+        if(t.running && (t.target - getElapsed(t))<=0){
+          t.elapsed=t.target; t.running=false; t.startedAt=null;
+          changed=true;
+          const next = scene.beats[idx+1];
+          if(next){
+            const nt=ensureTimer(next);
+            nt.elapsed=0; nt.running=true; nt.startedAt=Date.now();
+          }
+        }
+      });
+    });
+  });
+  if(changed){ save(); if(state.tab==='run') render(); }
+}
+
+function tickTimelineAutoAdvance(){
+  if(!S()) return;
+  const timeline = buildRunTimeline();
+  let changed=false;
+  timeline.forEach((entry, idx)=>{
+    const host = entry.kind==='scene' ? entry.scene : entry.intermission;
+    const t = ensureTimer(host);
+    if(t.running && (t.target - getElapsed(t))<=0){
+      t.elapsed = t.target; t.running=false; t.startedAt=null;
+      changed=true;
+      if(entry.kind==='scene') pauseBeatsIn(entry.scene);
+      const next = timeline[idx+1];
+      if(next){
+        const nextHost = next.kind==='scene' ? next.scene : next.intermission;
+        const nt = ensureTimer(nextHost);
+        if(!nt.running){
+          startFresh(nt);
+          if(next.kind==='scene') cascadeStart('scene', next.scene);
+        }
+        activeSceneId = next.id;
+      }
+    }
+  });
+  if(changed){ save(); if(state.tab==='run') render(); }
+}
+
+let audioCtx = null;
+function beep(freq, times){
+  times = times || 1;
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    for(let i=0;i<times;i++){
+      const startAt = audioCtx.currentTime + i*0.35;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      gain.gain.setValueAtTime(0.001, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.25, startAt+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, startAt+0.22);
+      osc.start(startAt); osc.stop(startAt+0.25);
+    }
+  }catch(e){}
+}
+let firedCalls = {}; // callId -> true once that call's beep has fired for the current run
+
+function computeCallHosts(){
+  const timeline = buildRunTimeline();
+  const out = [];
+  timeline.forEach((entry, idx)=>{
+    const next = timeline[idx+1];
+    if(!next || next.kind!=='scene') return;
+    const calls = ensureCalls(S()).filter(c=>c.sceneId===next.scene.id);
+    if(!calls.length) return;
+    const hostKind = entry.kind==='scene' ? 'scene' : 'intermission';
+    const hostObj = entry.kind==='scene' ? entry.scene : entry.intermission;
+    calls.forEach(call=>out.push({hostKind, hostId: hostObj.id, hostObj, call}));
+  });
+  // Special case: a call targeting the very first scene of the show has no preceding scene or
+  // intermission to trigger off of — host it on that scene's own Act timer instead, since starting
+  // the act timer is what starts the first scene in the first place.
+  if(timeline.length && timeline[0].kind==='scene'){
+    const firstScene = timeline[0].scene;
+    const firstAct = timeline[0].act;
+    ensureCalls(S()).filter(c=>c.sceneId===firstScene.id).forEach(call=>{
+      out.push({hostKind:'act', hostId:firstAct.id, hostObj:firstAct, call});
+    });
+  }
+  return out;
+}
+function ensureCallTimer(call){
+  const t = ensureTimer(call);
+  if(t.target !== call.leadSeconds*1000) t.target = call.leadSeconds*1000;
+  return t;
+}
+function pauseCallsFor(hostId){
+  computeCallHosts().filter(h=>h.hostId===hostId).forEach(({call})=>{
+    const ct = call.timer;
+    if(ct && ct.running){ ct.elapsed = getElapsed(ct); ct.running=false; ct.startedAt=null; }
+  });
+}
+function resumeCallsFor(hostId){
+  computeCallHosts().filter(h=>h.hostId===hostId).forEach(({call})=>{
+    const ct = ensureCallTimer(call);
+    // only resume a call that had already started but hasn't finished counting down yet;
+    // one that never started will be auto-started by tickCalls once the host is running again,
+    // and one that already fired stays as-is (still shows called/highlighted).
+    if(!ct.running && ct.elapsed>0 && ct.elapsed<ct.target){ ct.running=true; ct.startedAt=Date.now(); }
+  });
+}
+function pauseBeatsIn(scene){
+  if(!scene || !scene.beats) return;
+  scene.beats.forEach(b=>{
+    const bt = b.timer;
+    if(bt && bt.running){ bt.elapsed = getElapsed(bt); bt.running=false; bt.startedAt=null; }
+  });
+}
+function resetAllTimers(){
+  if(!S()) return;
+  const clear = t=>{ t.elapsed=0; t.running=false; t.startedAt=null; };
+  S().acts.forEach(act=>{
+    clear(ensureTimer(act));
+    act.scenes.forEach(scene=>{
+      clear(ensureTimer(scene));
+      scene.beats.forEach(b=>clear(ensureTimer(b)));
+    });
+    clear(ensureTimer(ensureIntermission(act)));
+  });
+  ensureCalls(S()).forEach(call=>{
+    clear(ensureTimer(call));
+    delete firedCalls[call.id];
+  });
+  activeSceneId = null;
+  save(); render();
+}
+function tickCalls(){
+  if(!S()) return;
+  const hosts = computeCallHosts();
+  hosts.forEach(({hostObj, call})=>{
+    const hostTimer = ensureTimer(hostObj);
+    const ct = ensureCallTimer(call);
+    // start the call's own countdown automatically as soon as its host scene/intermission starts running
+    if(hostTimer.running && !ct.running && ct.elapsed===0){
+      startFresh(ct);
+    }
+    // if the host gets reset back to zero, re-arm the call so it can fire again next run
+    if(!hostTimer.running && hostTimer.elapsed===0 && (ct.running || ct.elapsed>0)){
+      ct.running=false; ct.elapsed=0; ct.startedAt=null;
+      firedCalls[call.id] = false;
+    }
+    if(ct.running){
+      const remain = ct.target - getElapsed(ct);
+      if(remain<=0 && !firedCalls[call.id]){
+        firedCalls[call.id] = true;
+        beep(call.leadSeconds<=60?988:660, call.leadSeconds<=60?3:1);
+      }
+    }
+  });
+  // update visible highlighting
+  document.querySelectorAll('[data-callitem]').forEach(li=>{
+    const call = ensureCalls(S()).find(c=>c.id===li.dataset.callitem); if(!call) return;
+    const ct = ensureTimer(call);
+    const remain = ct.target - getElapsed(ct);
+    li.classList.toggle('callDue', (ct.running || ct.elapsed>0) && remain<=0);
+  });
+}
+
+setInterval(()=>{
+  tickBeatAutoAdvance();
+  tickTimelineAutoAdvance();
+  tickCalls();
+  document.querySelectorAll('[data-timerdisplay]').forEach(el=>{
+    const kind = el.dataset.timerkind;
+    const obj = timerObjFor(kind, el.dataset.timerid);
+    if(!obj) return;
+    const t = ensureTimer(obj);
+    const remain = t.target - getElapsed(t);
+    el.textContent = formatCountdown(remain);
+    el.classList.toggle('overtime', remain<0);
+    if(kind==='beat') el.classList.toggle('timerActive', t.running);
+  });
+}, 1000);
+
+render();
+</script>
+</body>
+</html>
